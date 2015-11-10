@@ -7,8 +7,11 @@
 #include "mt19937p.h"
 
 #ifndef BLOCK_SIZE
-#define BLOCK_SIZE ((int) 512)
+#define BLOCK_SIZE ((int) 16)
 #endif
+
+#define NUM_THREADS 4
+#define SQRT_THREADS 2
 
 //ldoc on
 /**
@@ -42,48 +45,82 @@
  * identical, and false otherwise.
  */
 
- int basic(int lda,                  // Number of nodes in whole domain
-           int* restrict l,         // Partial distance at step s
-           int* restrict lnew,      // Partial distance at step s+1
-           int i0, int j0, int k0)  // Position of subdomain
+int square(int n,               // Number of nodes
+           int* restrict l,     // Partial distance at step s
+           int* restrict lnew)  // Partial distance at step s+1
 {
+    int tid;
+
     int done = 1;
-    for (int j = j0; j < j0+BLOCK_SIZE; ++j) {
-        for (int i = i0; i < i0+BLOCK_SIZE; ++i) {
-            int lij = lnew[j*lda+i];
-            for (int k = k0; k < k0+BLOCK_SIZE; ++k) {
-                int lik = l[k*lda+i];
-                int lkj = l[j*lda+k];
-                if (lik + lkj < lij) {
-                    lij = lik+lkj;
-                    done = 0;
+    #pragma omp parallel private(tid) shared(l, lnew, n) reduction(&& : done)
+    {
+        int nrows = n / SQRT_THREADS;
+        int nblocks = nrows / BLOCK_SIZE;
+
+        tid = omp_get_thread_num();
+        int col = tid % SQRT_THREADS;
+        int row = tid / SQRT_THREADS;
+        int col_offset = col * nrows;
+        int row_offset = row * nrows;
+
+        for(int T = 0; T < SQRT_THREADS; T++) {
+            for(int I = 0; I < nblocks; ++I) { // block row
+                for(int J = 0; J < nblocks; ++J) { // block column
+                    int C_offset = col_offset + J * BLOCK_SIZE +
+                                   (row_offset + I * BLOCK_SIZE) * n;
+                    for(int K = 0; K < nblocks; ++K) {
+                        int A_offset = T * nrows + K * BLOCK_SIZE + (row_offset + I * BLOCK_SIZE) * n;
+                        int B_offset = col_offset + J * BLOCK_SIZE + (T * nrows + K * BLOCK_SIZE) * n;
+
+                        #pragma unroll
+                        for (int i = 0; i < BLOCK_SIZE; ++i) {
+                            for (int j = 0; j < BLOCK_SIZE; ++j) {
+                                int a = l[A_offset + j + i * n];
+                                for (int k = 0; k < BLOCK_SIZE; ++k) {
+                                    int result = a + l[B_offset + k + j * n];
+
+                                    int result_idx = k + C_offset + i * n;
+                                    int c = lnew[result_idx];
+                                    if(result < c){
+                                        done = 0;
+                                        lnew[result_idx] = result;
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
-            lnew[j*lda+i] = lij;
         }
+
+        int end_row = (row + 1) * nrows;
+        int end_col = (col + 1) * nrows;
+
+        #pragma omp barrier
+
+        for (int j = row_offset; j < end_row; ++j) {
+            for (int i = col_offset; i < end_col; ++i) {
+                l[j*n+i] = lnew[j*n+i];
+            }
+        }
+
+        // for (int j = row_offset; j < end_row; ++j) {
+        //     for (int i = col_offset; i < end_col; ++i) {
+        //         int lij = lnew[j*n+i];
+        //         for (int k = 0; k < n; ++k) {
+        //             int lik = l[k*n+i];
+        //             int lkj = l[j*n+k];
+        //             if (lik + lkj < lij) {
+        //                 lij = lik+lkj;
+        //                 done = 0;
+        //             }
+        //         }
+        //         lnew[j*n+i] = lij;
+        //     }
+        // }
     }
     return done;
 }
-
- int square(int n, int* restrict l, int* restrict lnew)
- {
-    // const int n_blocks = n / BLOCK_SIZE + (n%BLOCK_SIZE? 1 : 0);
-    int n_blocks = n / BLOCK_SIZE;
-    int done = 1; 
-
-    #pragma omp parallel for shared(l, lnew) reduction(&& : done)
-    for (int bj = 0; bj < n_blocks; ++bj) {
-        int j = bj*BLOCK_SIZE;
-        for (int bi = 0; bi < n_blocks; ++bi) {
-            int i = bi*BLOCK_SIZE;
-            for (int bk = 0; bk < n_blocks; ++bk) {
-                int k = bk*BLOCK_SIZE;
-                done = basic(n,l,lnew,i,j,k);
-            }
-        }
-    }
-    return done;
- }
 
  int square_ref(int n,               // Number of nodes
            int* restrict l,     // Partial distance at step s
@@ -163,7 +200,6 @@ void shortest_paths(int n, int* restrict l)
     memcpy(lnew, l, n*n * sizeof(int));
     for (int done = 0; !done; ) {
         done = square(n, l, lnew);
-        memcpy(l, lnew, n*n * sizeof(int));
     }
     free(lnew);
     deinfinitize(n, l);
