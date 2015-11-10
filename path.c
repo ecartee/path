@@ -49,17 +49,17 @@
 {
     int done = 1;
     for (int j = j0; j < j0+BLOCK_SIZE; ++j) {
-        for (int i = i0; i < i0+BLOCK_SIZE; ++i) {
-            int lij = lnew[j*lda+i];
-            for (int k = k0; k < k0+BLOCK_SIZE; ++k) {
+        for (int k = k0; k < k0+BLOCK_SIZE; ++k) {
+            int lkj = l[j*lda+k];
+            for (int i = i0; i < i0+BLOCK_SIZE; ++i) {
+                int lij = lnew[j*lda+i];
                 int lik = l[k*lda+i];
-                int lkj = l[j*lda+k];
                 if (lik + lkj < lij) {
                     lij = lik+lkj;
                     done = 0;
                 }
+                lnew[j*lda+i] = lij;
             }
-            lnew[j*lda+i] = lij;
         }
     }
     return done;
