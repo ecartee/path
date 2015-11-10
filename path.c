@@ -55,7 +55,7 @@
  void copy_to_global(int n, int* restrict l, int* restrict l_, int i0, int j0) {
     for(int j=0; j < BLOCK_SIZE; ++j) {
         for(int i=0; i < BLOCK_SIZE; ++i) {
-             l[(j0+j)*n + (i0+i)]; l_[j*BLOCK_SIZE+i];
+             l[(j0+j)*n + (i0+i)]= l_[j*BLOCK_SIZE+i];
         }
     }
  }
