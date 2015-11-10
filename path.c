@@ -46,13 +46,13 @@
            int* restrict l,         // Partial distance at step s
            int* restrict lnew,      // Partial distance at step s+1
            int i0, int j0, int k0,  // Position of subdomain
-           int M, int N, int K)     // Size of subdomain
+           // Assume everything is BLOCK_SIZE by BLOCK_SIZe
 {
     int done = 1;
-    for (int j = j0; j < j0+N; ++j) {
-        for (int i = i0; i < i0+M; ++i) {
+    for (int j = j0; j < j0+BLOCK_SIZE; ++j) {
+        for (int i = i0; i < i0+BLOCK_SIZE; ++i) {
             int lij = lnew[j*lda+i];
-            for (int k = k0; k < k0+K; ++k) {
+            for (int k = k0; k < k0+BLOCK_SIZE; ++k) {
                 int lik = l[k*lda+i];
                 int lkj = l[j*lda+k];
                 if (lik + lkj < lij) {
@@ -66,21 +66,21 @@
     return done;
 }
 
-// Maybe just remove this function?
- int do_block(int lda,             // Number of nodes in whole domain
-           int* restrict l,      // Partial distance at step s
-           int* restrict lnew,   // Partial distance at step s+1
-           int i, int j, int k)  // Position of subdomain
- {
-    const int M = (i+BLOCK_SIZE > lda? lda-i : BLOCK_SIZE);
-    const int N = (j+BLOCK_SIZE > lda? lda-j : BLOCK_SIZE);
-    const int K = (k+BLOCK_SIZE > lda? lda-k : BLOCK_SIZE);
-    return basic(n,l,lnew,i,j,k,M,N,K);
- }
+ // int do_block(int lda,             // Number of nodes in whole domain
+ //           int* restrict l,      // Partial distance at step s
+ //           int* restrict lnew,   // Partial distance at step s+1
+ //           int i, int j, int k)  // Position of subdomain
+ // {
+ //    const int M = (i+BLOCK_SIZE > lda? lda-i : BLOCK_SIZE);
+ //    const int N = (j+BLOCK_SIZE > lda? lda-j : BLOCK_SIZE);
+ //    const int K = (k+BLOCK_SIZE > lda? lda-k : BLOCK_SIZE);
+ //    return basic(lda,l,lnew,i,j,k,M,N,K);
+ // }
 
  int square(int n, int* restrict l, int* restrict lnew)
  {
-    const int n_blocks = n / BLOCK_SIZE + (n%BLOCK_SIZE? 1 : 0);
+    // const int n_blocks = n / BLOCK_SIZE + (n%BLOCK_SIZE? 1 : 0);
+    int n_blocks = n / BLOCK_SIZE;
     int done = 1; 
     int i, j, k, bi, bj, bk;
 
@@ -91,7 +91,7 @@
             i = bi*BLOCK_SIZE;
             for (bk = 0; bk < n_blocks; ++bk) {
                 k = bk*BLOCK_SIZE;
-                done = do_block(n,l,lnew,i,j,k);
+                done = basic(n,l,lnew,i,j,k);
             }
         }
     }
@@ -240,7 +240,7 @@ const char* usage =
 
 int main(int argc, char** argv)
 {
-    int n    = 200;            // Number of nodes
+    int n    = 512;            // Number of nodes
     double p = 0.05;           // Edge probability
     const char* ifname = NULL; // Adjacency matrix file name
     const char* ofname = NULL; // Distance matrix file name
