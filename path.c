@@ -42,19 +42,36 @@
  * identical, and false otherwise.
  */
 
- int basic(int lda,                  // Number of nodes in whole domain
-           int* restrict l,         // Partial distance at step s
-           int* restrict lnew,      // Partial distance at step s+1
-           int i0, int j0, int k0)  // Position of subdomain
+/* Copy from matrix l into block l_ */
+ void copy_to_block(int n, int* restrict l_, int* restrict l, int i0, int j0) {
+    for(int j=0; j < BLOCK_SIZE; ++j) {
+        for(int i=0; i < BLOCK_SIZE; ++i) {
+            l_[j*BLOCK_SIZE+i] = l[(j0+j)*n + (i0+i)];
+        }
+    }
+ }
+
+ /* Copy from block l_ into matrix l */
+ void copy_to_global(int n, int* restrict l, int* restrict l_, int i0, int j0) {
+    for(int j=0; j < BLOCK_SIZE; ++j) {
+        for(int i=0; i < BLOCK_SIZE; ++i) {
+             l[(j0+j)*n + (i0+i)]; l_[j*BLOCK_SIZE+i]
+        }
+    }
+ }
+
+ int basic(int* restrict l_ik,      // i,k block
+           int* restrict l_kj,      // k,j block
+           int* restrict l_ij)      // i,j block
 {
     int done = 1;
-    for (int j = j0; j < j0+BLOCK_SIZE; ++j) {
-        for (int k = k0; k < k0+BLOCK_SIZE; ++k) {
-            int lkj = l[j*lda+k];
-            for (int i = i0; i < i0+BLOCK_SIZE; ++i) {
-                int lik = l[k*lda+i];
-                if (lik + lkj < lnew[j*lda+i]) {
-                    lnew[j*lda+i] = lik+lkj;
+    for (int j = 0; j < BLOCK_SIZE; ++j) {
+        for (int k = 0; k < BLOCK_SIZE; ++k) {
+            int lkj = l_kj[j*BLOCK_SIZE+k];
+            for (int i = 0; i < BLOCK_SIZE; ++i) {
+                int lik = l_ik[k*BLOCK_SIZE+i];
+                if (lik + lkj < lnew[j*BLOCK_SIZE+i]) {
+                    l_ij[j*BLOCK_SIZE+i] = lik+lkj;
                     done = 0;
                 }
             }
@@ -69,15 +86,31 @@
     int done = 1; 
 
     #pragma omp parallel for shared(l, lnew) reduction(&& : done)
-    for (int bj = 0; bj < n_blocks; ++bj) {
-        int j = bj*BLOCK_SIZE;
-        for (int bi = 0; bi < n_blocks; ++bi) {
-            int i = bi*BLOCK_SIZE;
-            for (int bk = 0; bk < n_blocks; ++bk) {
-                int k = bk*BLOCK_SIZE;
-                done = basic(n,l,lnew,i,j,k);
+    {
+        // Allocate some memory for blocks
+        int* restrict l_ij = (int*) calloc(BLOCK_SIZE*BLOCK_SIZE,sizeof(int));
+        int* restrict l_ik = (int*) calloc(BLOCK_SIZE*BLOCK_SIZE,sizeof(int));
+        int* restrict l_kj = (int*) calloc(BLOCK_SIZE*BLOCK_SIZE,sizeof(int));
+
+        for (int bj = 0; bj < n_blocks; ++bj) {
+            int j = bj*BLOCK_SIZE;
+            for (int bi = 0; bi < n_blocks; ++bi) {
+                int i = bi*BLOCK_SIZE;
+                copy_to_block(n, l_ij,lnew,i,j);
+                for (int bk = 0; bk < n_blocks; ++bk) {
+                    int k = bk*BLOCK_SIZE;
+                    copy_to_block(n,l_ik,l,i,k);
+                    copy_to_block(n,l_kj,l,k,j);
+                    done = basic(l_ik,l_kj,l_ij);
+                }
+                copy_to_global(n,lnew,l_ij,i,j);
             }
         }
+
+        // Free some memory
+        free(l_ij);
+        free(l_ik);
+        free(l_kj);
     }
     return done;
  }
