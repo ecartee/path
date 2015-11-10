@@ -53,7 +53,7 @@
             int lkj = l[j*lda+k];
             for (int i = i0; i < i0+BLOCK_SIZE; ++i) {
                 int lik = l[k*lda+i];
-                if (lik + lkj < lnew[j*lda+i];) {
+                if (lik + lkj < lnew[j*lda+i]) {
                     lnew[j*lda+i] = lik+lkj;
                     done = 0;
                 }
