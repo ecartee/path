@@ -299,9 +299,6 @@ int main(int argc, char** argv)
     int* lref = calloc(n*n, sizeof(int));
     memcpy(lref,l,n*n*sizeof(int));
 
-    // For debugging purposes
-    printf("Test: %X   %X",fletcher16(l,n*n),fletcher16(lref,n*n));
-
     // Time the shortest paths code
     double t0 = omp_get_wtime();
     shortest_paths(n, l);
@@ -314,9 +311,9 @@ int main(int argc, char** argv)
     printf("== OpenMP with %d threads\n", omp_get_max_threads());
     printf("n:     %d\n", n);
     printf("p:     %g\n", p);
-    printf("Time:  %g\n", t1-t0);
-    printf("Reference Time: %g\n",t1_ref-t0_ref);
-    printf("Check: %X\n", fletcher16(l, n*n));
+    printf("Time:           %g\n", t1-t0);
+    printf("Reference Time: %g\n", t1_ref-t0_ref);
+    printf("Checksum:           %X\n", fletcher16(l, n*n));
     printf("Reference Checksum: %X\n", fletcher16(lref, n*n));
 
     // Generate output file
