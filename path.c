@@ -7,7 +7,7 @@
 #include "mt19937p.h"
 
 #ifndef BLOCK_SIZE
-#define BLOCK_SIZE ((int) 16)
+#define BLOCK_SIZE ((int) 512)
 #endif
 
 //ldoc on
@@ -70,15 +70,14 @@
     // const int n_blocks = n / BLOCK_SIZE + (n%BLOCK_SIZE? 1 : 0);
     int n_blocks = n / BLOCK_SIZE;
     int done = 1; 
-    int i, j, k, bi, bj, bk;
 
     #pragma omp parallel for shared(l, lnew) reduction(&& : done)
-    for (bj = 0; bj < n_blocks; ++bj) {
-        j = bj*BLOCK_SIZE;
-        for (bi = 0; bi < n_blocks; ++bi) {
-            i = bi*BLOCK_SIZE;
-            for (bk = 0; bk < n_blocks; ++bk) {
-                k = bk*BLOCK_SIZE;
+    for (int bj = 0; bj < n_blocks; ++bj) {
+        int j = bj*BLOCK_SIZE;
+        for (int bi = 0; bi < n_blocks; ++bi) {
+            int i = bi*BLOCK_SIZE;
+            for (int bk = 0; bk < n_blocks; ++bk) {
+                int k = bk*BLOCK_SIZE;
                 done = basic(n,l,lnew,i,j,k);
             }
         }
@@ -322,5 +321,6 @@ int main(int argc, char** argv)
 
     // Clean up
     free(l);
+    free(lref);
     return 0;
 }
