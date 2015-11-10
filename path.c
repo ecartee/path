@@ -55,7 +55,7 @@
  void copy_to_global(int n, int* restrict l, int* restrict l_, int i0, int j0) {
     for(int j=0; j < BLOCK_SIZE; ++j) {
         for(int i=0; i < BLOCK_SIZE; ++i) {
-             l[(j0+j)*n + (i0+i)]; l_[j*BLOCK_SIZE+i]
+             l[(j0+j)*n + (i0+i)]; l_[j*BLOCK_SIZE+i];
         }
     }
  }
@@ -70,7 +70,7 @@
             int lkj = l_kj[j*BLOCK_SIZE+k];
             for (int i = 0; i < BLOCK_SIZE; ++i) {
                 int lik = l_ik[k*BLOCK_SIZE+i];
-                if (lik + lkj < lnew[j*BLOCK_SIZE+i]) {
+                if (lik + lkj < l_ij[j*BLOCK_SIZE+i]) {
                     l_ij[j*BLOCK_SIZE+i] = lik+lkj;
                     done = 0;
                 }
@@ -85,7 +85,7 @@
     int n_blocks = n / BLOCK_SIZE;
     int done = 1; 
 
-    #pragma omp parallel for shared(l, lnew) reduction(&& : done)
+    // #pragma omp parallel for shared(l, lnew) reduction(&& : done)
     {
         // Allocate some memory for blocks
         int* restrict l_ij = (int*) calloc(BLOCK_SIZE*BLOCK_SIZE,sizeof(int));
