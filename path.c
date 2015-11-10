@@ -170,6 +170,24 @@ void shortest_paths(int n, int* restrict l)
     deinfinitize(n, l);
 }
 
+void shortest_paths_ref(int n, int* restrict l)
+{
+    // Generate l_{ij}^0 from adjacency matrix representation
+    infinitize(n, l);
+    for (int i = 0; i < n*n; i += n+1)
+        l[i] = 0;
+
+    // Repeated squaring until nothing changes
+    int* restrict lnew = (int*) calloc(n*n, sizeof(int));
+    memcpy(lnew, l, n*n * sizeof(int));
+    for (int done = 0; !done; ) {
+        done = square_ref(n, l, lnew);
+        memcpy(l, lnew, n*n * sizeof(int));
+    }
+    free(lnew);
+    deinfinitize(n, l);
+}
+
 /**
  * # The random graph model
  *
@@ -281,22 +299,25 @@ int main(int argc, char** argv)
     int* lref = calloc(n*n, sizeof(int));
     memcpy(lref,l,n*n*sizeof(int));
 
+    // For debugging purposes
+    printf("Test: %X   %X",fletcher16(l,n*n),fletcher16(lref,n*n));
+
     // Time the shortest paths code
     double t0 = omp_get_wtime();
     shortest_paths(n, l);
     double t1 = omp_get_wtime();
 
     double t0_ref = omp_get_wtime();
-    shortest_paths(n,lref);
+    shortest_paths_ref(n,lref);
     double t1_ref = omp_get_wtime();
 
     printf("== OpenMP with %d threads\n", omp_get_max_threads());
     printf("n:     %d\n", n);
     printf("p:     %g\n", p);
     printf("Time:  %g\n", t1-t0);
-    printf("Reference Time: %g/n",t1_ref-t0_ref);
+    printf("Reference Time: %g\n",t1_ref-t0_ref);
     printf("Check: %X\n", fletcher16(l, n*n));
-    prtinf("Reference Checksum: %X/n", fletcher16(lref, n*n));
+    printf("Reference Checksum: %X\n", fletcher16(lref, n*n));
 
     // Generate output file
     if (ofname)
