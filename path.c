@@ -84,15 +84,19 @@
  {
     int n_blocks = n / BLOCK_SIZE;
     int done = 1; 
+    int p = 1;
+    omp_set_dynamic(0);
 
-    #pragma omp parallel shared(l, lnew) reduction(&& : done)
+    #pragma omp parallel shared(l, lnew) reduction(&& : done) num_threads(p)
     {
+        int thread_id = omp_get_thread_num();
+
         // Allocate some memory for blocks
         int* restrict l_ij = (int*) calloc(BLOCK_SIZE*BLOCK_SIZE,sizeof(int));
         int* restrict l_ik = (int*) calloc(BLOCK_SIZE*BLOCK_SIZE,sizeof(int));
         int* restrict l_kj = (int*) calloc(BLOCK_SIZE*BLOCK_SIZE,sizeof(int));
 
-        for (int bj = omp_get_thread_num(); bj < n_blocks; bj = bj+omp_get_max_threads()) {
+        for (int bj = thread_id; bj < n_blocks; bj = bj+p) {
             int j = bj*BLOCK_SIZE;
             for (int bi = 0; bi < n_blocks; ++bi) {
                 int i = bi*BLOCK_SIZE;
