@@ -7,7 +7,7 @@
 #include "mt19937p.h"
 
 #ifndef BLOCK_SIZE
-#define BLOCK_SIZE ((int) 512)
+#define BLOCK_SIZE ((int) 32)
 #endif
 
 //ldoc on
@@ -52,13 +52,11 @@
         for (int k = k0; k < k0+BLOCK_SIZE; ++k) {
             int lkj = l[j*lda+k];
             for (int i = i0; i < i0+BLOCK_SIZE; ++i) {
-                int lij = lnew[j*lda+i];
                 int lik = l[k*lda+i];
-                if (lik + lkj < lij) {
-                    lij = lik+lkj;
+                if (lik + lkj < lnew[j*lda+i];) {
+                    lnew[j*lda+i] = lik+lkj;
                     done = 0;
                 }
-                lnew[j*lda+i] = lij;
             }
         }
     }
@@ -67,7 +65,6 @@
 
  int square(int n, int* restrict l, int* restrict lnew)
  {
-    // const int n_blocks = n / BLOCK_SIZE + (n%BLOCK_SIZE? 1 : 0);
     int n_blocks = n / BLOCK_SIZE;
     int done = 1; 
 
