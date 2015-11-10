@@ -45,8 +45,7 @@
  int basic(int lda,                  // Number of nodes in whole domain
            int* restrict l,         // Partial distance at step s
            int* restrict lnew,      // Partial distance at step s+1
-           int i0, int j0, int k0,  // Position of subdomain
-           // Assume everything is BLOCK_SIZE by BLOCK_SIZe
+           int i0, int j0, int k0)  // Position of subdomain
 {
     int done = 1;
     for (int j = j0; j < j0+BLOCK_SIZE; ++j) {
@@ -65,17 +64,6 @@
     }
     return done;
 }
-
- // int do_block(int lda,             // Number of nodes in whole domain
- //           int* restrict l,      // Partial distance at step s
- //           int* restrict lnew,   // Partial distance at step s+1
- //           int i, int j, int k)  // Position of subdomain
- // {
- //    const int M = (i+BLOCK_SIZE > lda? lda-i : BLOCK_SIZE);
- //    const int N = (j+BLOCK_SIZE > lda? lda-j : BLOCK_SIZE);
- //    const int K = (k+BLOCK_SIZE > lda? lda-k : BLOCK_SIZE);
- //    return basic(lda,l,lnew,i,j,k,M,N,K);
- // }
 
  int square(int n, int* restrict l, int* restrict lnew)
  {
@@ -97,6 +85,29 @@
     }
     return done;
  }
+
+ int square_ref(int n,               // Number of nodes
+           int* restrict l,     // Partial distance at step s
+           int* restrict lnew)  // Partial distance at step s+1
+{
+    int done = 1;
+    #pragma omp parallel for shared(l, lnew) reduction(&& : done)
+    for (int j = 0; j < n; ++j) {
+        for (int i = 0; i < n; ++i) {
+            int lij = lnew[j*n+i];
+            for (int k = 0; k < n; ++k) {
+                int lik = l[k*n+i];
+                int lkj = l[j*n+k];
+                if (lik + lkj < lij) {
+                    lij = lik+lkj;
+                    done = 0;
+                }
+            }
+            lnew[j*n+i] = lij;
+        }
+    }
+    return done;
+}
 
 
 /**
@@ -266,16 +277,26 @@ int main(int argc, char** argv)
     if (ifname)
         write_matrix(ifname,  n, l);
 
+    // Create a copy of l in lref
+    int* lref = calloc(n*n, sizeof(int));
+    memcpy(lref,l,n*n*sizeof(int));
+
     // Time the shortest paths code
     double t0 = omp_get_wtime();
     shortest_paths(n, l);
     double t1 = omp_get_wtime();
 
+    double t0_ref = omp_get_wtime();
+    shortest_paths(n,lref);
+    double t1_ref = omp_get_wtime();
+
     printf("== OpenMP with %d threads\n", omp_get_max_threads());
     printf("n:     %d\n", n);
     printf("p:     %g\n", p);
     printf("Time:  %g\n", t1-t0);
+    printf("Reference Time: %g/n",t1_ref-t0_ref);
     printf("Check: %X\n", fletcher16(l, n*n));
+    prtinf("Reference Checksum: %X/n", fletcher16(lref, n*n));
 
     // Generate output file
     if (ofname)
