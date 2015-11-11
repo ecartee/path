@@ -254,17 +254,21 @@ void write_matrix(const char* fname, int n, int* a)
 void strong_scaling(int n, int p) {
     FILE *fp;
     fp = fopen("strong_scaling.csv", "w+");
-    double t_start, t_end;
-    int thread_max = 50, i, *l;
+    double t_start, t_end, t_threadrun;
+    int thread_max = 50, runs = 5, i, j, *l;
 
     for (i = 1; i <= thread_max; i++) {
         omp_set_num_threads(i);
-        l = gen_graph(n, p);
-        t_start = omp_get_wtime();
-        shortest_paths(n, l);
-        t_end = omp_get_wtime();
-        free(l);
-        fprintf(fp, "%d, %f\n", i, (t_end - t_start));
+        t_threadrun = 0.0;
+        for (j=0; j < runs; j++) {
+            l = gen_graph(n, p);
+            t_start = omp_get_wtime();
+            shortest_paths(n, l);
+            t_end = omp_get_wtime();
+            t_threadrun += (t_end - t_start);
+            free(l);
+        }
+        fprintf(fp, "%d, %f\n", i, (t_threadrun / (double)runs));
     } 
     fclose(fp);
 }
@@ -272,20 +276,25 @@ void strong_scaling(int n, int p) {
 void weak_scaling(int n, int p) {
     FILE *fp;
     fp = fopen("weak_scaling.csv", "w+");
-    double t_start, t_end;
-    int thread_max = 50, i, *l;
+    double t_start, t_end, t_threadrun;
+    int thread_max = 50, runs = 1, i, j, k, *l;
     int problem_size = n * n;
     int n_scaled;
 
-    for (i = 1; i <= thread_max; i++) {
+    for (k = 1; k <= sqrt(thread_max); k++) {
+        i = k*k;
         omp_set_num_threads(i);
-        n_scaled = ceil(sqrt(problem_size / i));
-        l = gen_graph(n_scaled, p);
-        t_start = omp_get_wtime();
-        shortest_paths(n_scaled, l);
-        t_end = omp_get_wtime();
-        free(l);
-        fprintf(fp, "%d, %f\n", i, (t_end - t_start));
+        n_scaled = ceil(sqrt(problem_size * i));
+        t_threadrun = 0.0;
+        for (j=0; j < runs; j++) {
+            l = gen_graph(n_scaled, p);
+            t_start = omp_get_wtime();
+            shortest_paths(n_scaled, l);
+            t_end = omp_get_wtime();
+            t_threadrun += (t_end - t_start);
+            free(l);
+        }
+        fprintf(fp, "%d, %f\n", i, (t_threadrun / (double)runs));
     } 
     fclose(fp);
 }
@@ -360,7 +369,7 @@ int main(int argc, char** argv)
     free(lref);
 
     strong_scaling(n, p);
-    weak_scaling(4000, p);
+    weak_scaling(2048, p);
     
     return 0;
 }
