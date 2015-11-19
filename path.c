@@ -42,7 +42,7 @@
  * identical, and false otherwise.
  */
 
- int basic(int lda,                  // Number of nodes in whole domain
+ int basic_block(int lda,                  // Number of nodes in whole domain
            int* restrict l,         // Partial distance at step s
            int* restrict lnew,      // Partial distance at step s+1
            int i0, int j0, int k0)  // Position of subdomain
@@ -63,19 +63,52 @@
     return done;
 }
 
+int basic(int lda,                  // Number of nodes in whole domain
+           int* restrict l,         // Partial distance at step s
+           int* restrict lnew,      // Partial distance at step s+1
+           int i0, int j0, int k0,  // Position of subdomain
+           int M, int N, int K)     // Size of subdomain
+{
+    int done = 1;
+    for (int j = j0; j < j0+N; ++j) {
+        for (int k = k0; k < k0+K; ++k) {
+            int lkj = l[j*lda+k];
+            for (int i = i0; i < i0+M; ++i) {
+                int lik = l[k*lda+i];
+                if (lik + lkj < lnew[j*lda+i]) {
+                    lnew[j*lda+i] = lik+lkj;
+                    done = 0;
+                }
+            }
+        }
+    }
+    return done;
+}
+
+
  int square(int n, int* restrict l, int* restrict lnew)
  {
     int n_blocks = n / BLOCK_SIZE;
     int done = 1; 
+    int block = 0;
+    int M,N,K;
 
     #pragma omp parallel for shared(l, lnew) reduction(&& : done)
     for (int bj = 0; bj < n_blocks; ++bj) {
         int j = bj*BLOCK_SIZE;
+        N = (j+BLOCK_SIZE > n? n-j : BLOCK_SIZE);
         for (int bi = 0; bi < n_blocks; ++bi) {
             int i = bi*BLOCK_SIZE;
+            M = (i+BLOCK_SIZE > n? n-i : BLOCK_SIZE);
             for (int bk = 0; bk < n_blocks; ++bk) {
                 int k = bk*BLOCK_SIZE;
-                done = basic(n,l,lnew,i,j,k);
+                K = (k+BLOCK_SIZE > n? n-k : BLOCK_SIZE);
+                // If things are perfectly sized
+                if(M == BLOCK_SIZE && N == BLOCK_SIZE && K == BLOCK_SIZE) {
+                    done = done && basic_block(n,l,lnew,i,j,k);
+                } else { //otherwise
+                    done = done && basic(n,l,lnew,i,j,k,M,N,K);
+                }
             }
         }
     }
@@ -368,8 +401,8 @@ int main(int argc, char** argv)
     free(l);
     free(lref);
 
-    strong_scaling(n, p);
-    weak_scaling(2048, p);
+    // strong_scaling(n, p);
+    // weak_scaling(2048, p);
     
     return 0;
 }
