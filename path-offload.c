@@ -253,6 +253,76 @@ void write_matrix(const char* fname, int n, int* a)
     fclose(fp);
 }
 
+void strong_scaling(int n, int p, int mic) {
+    FILE *fp;
+    fp = fopen("strong_scaling.csv", "w+");
+    double t_start, t_end, t_threadrun;
+    int thread_max = 50, runs = 5, i, j, *l;
+
+    for (i = 1; i <= thread_max; i++) {
+        omp_set_num_threads(i);
+        t_threadrun = 0.0;
+        for (j=0; j < runs; j++) {
+            l = gen_graph(n, p);
+            int nBlocks  = (int) ceil((float) n / (float) SQRT_THREADS / (float) BLOCK_SIZE);
+            int copySize = nBlocks * SQRT_THREADS * BLOCK_SIZE;
+            int* lCopy = gen_graphCopy(copySize, n, p);
+            t_start = omp_get_wtime();
+            if(mic) {
+                #pragma offload target(mic) inout( lCopy : length(copySize*copySize)) \
+                in(copySize)
+                {
+                    shortest_paths(copySize, lCopy);
+                }
+            } else {
+                shortest_paths(copySize, lCopy);
+            }
+            t_end = omp_get_wtime();
+            t_threadrun += (t_end - t_start);
+            free(l);
+        }
+        fprintf(fp, "%d, %f\n", i, (t_threadrun / (double)runs));
+    } 
+    fclose(fp);
+}
+
+void weak_scaling(int n, int p, int mic) {
+    FILE *fp;
+    fp = fopen("weak_scaling.csv", "w+");
+    double t_start, t_end, t_threadrun;
+    int thread_max = 20, runs = 1, i, j, *l;
+    int problem_size = n * n;
+    int n_scaled;
+
+    for (i = 1; i <= thread_max; i++) {
+        omp_set_num_threads(i);
+        n_scaled = ceil(sqrt(problem_size * i));
+        t_threadrun = 0.0;
+        for (j=0; j < runs; j++) {
+            l = gen_graph(n_scaled, p);
+            int nBlocks  = (int) ceil((float) n_scaled / (float) SQRT_THREADS / (float) BLOCK_SIZE);
+            int copySize = nBlocks * SQRT_THREADS * BLOCK_SIZE;
+            int* lCopy = gen_graphCopy(copySize, n_scaled, p);
+            t_start = omp_get_wtime();
+            if(mic) {
+                #pragma offload target(mic) inout( lCopy : length(copySize*copySize)) \
+                in(copySize)
+                {
+                    shortest_paths(copySize, lCopy);
+                }
+            } else {
+                shortest_paths(copySize, lCopy);
+            }
+            t_end = omp_get_wtime();
+            t_threadrun += (t_end - t_start);
+            free(l);
+            _mm_free(lCopy);
+        }
+        fprintf(fp, "%d, %f\n", i, (t_threadrun / (double)runs));
+    } 
+    fclose(fp);
+}
+
 /**
  * # The `main` event
  */
@@ -341,5 +411,9 @@ int main(int argc, char** argv)
     // Clean up
     _mm_free(l);
     _mm_free(lCopy);
+
+    strong_scaling(n, p, mic);
+    weak_scaling(1000, p, mic);
+
     return 0;
 }
