@@ -38,8 +38,8 @@
  * identical, and false otherwise.
  */
 
-#define NUM_THREADS 16
-#define SQRT_THREADS 4
+#define NUM_THREADS 64
+#define SQRT_THREADS 8
 #define BLOCK_SIZE 64
 
 int __attribute__((target(mic))) square(int n,               // Number of nodes
@@ -152,6 +152,7 @@ static inline void __attribute__((target(mic))) deinfinitize(int n, int* l)
 
 void __attribute__((target(mic))) shortest_paths(int n, int* restrict l)
 {
+    omp_set_num_threads(NUM_THREADS);
     // Generate l_{ij}^0 from adjacency matrix representation
     infinitize(n, l);
     for (int i = 0; i < n*n; i += n+1)
@@ -272,11 +273,11 @@ int main(int argc, char** argv)
     const char* ofname = NULL; // Distance matrix file name
     int mic = 0;
 
-    omp_set_num_threads(NUM_THREADS);
+    // omp_set_num_threads(NUM_THREADS);
 
     // Option processing
     extern char* optarg;
-    const char* optstring = "hn:d:p:o:i:";
+    const char* optstring = "hn:d:p:o:i:m:";
     int c;
     while ((c = getopt(argc, argv, optstring)) != -1) {
         switch (c) {
@@ -326,7 +327,7 @@ int main(int argc, char** argv)
     }
     double t1_copy = omp_get_wtime();
 
-    printf("== OpenMP with %d threads\n", omp_get_max_threads());
+    printf("== OpenMP with %d threads\n", NUM_THREADS);
     printf("n:         %d\n", n);
     printf("p:         %g\n", p);
     printf("Time:      %g\n", t1-t0);
